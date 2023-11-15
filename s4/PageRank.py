@@ -1,8 +1,8 @@
 import time
 
-MAX_ITERATIONS = 10
+MAX_ITERATIONS = 1000
 DAMPING_FACTOR = L = 0.85
-CONVERGENCE_THRESHOLD = 1e-7
+CONVERGENCE_THRESHOLD = 1e-16
 
 
 class Airport:
@@ -15,14 +15,13 @@ class Airport:
         self.pagerank = -1
 
     def __repr__(self):
-        return f"{self.code} - {self.name.ljust(50, '·')} {self.pagerank} - {self.edges}"
+        return f"{self.code} - {self.name.ljust(50, '·')} {self.pagerank}"
 
 
 airport_list = []
 airport_hash = dict()
 
-first_dangling_airport_index = -1
-m = amount_of_dangling_airports = 0
+dangling_airport_indexes = []
 
 n = -1
 
@@ -73,15 +72,13 @@ def read_routes(fd):
         except KeyError:
             pass
 
-    global first_dangling_airport_index, m
+    global dangling_airport_indexes
     for i in range(n):
         if airport_list[i].out_weight == 0:
-            m += 1
-            if first_dangling_airport_index == -1:
-                first_dangling_airport_index = i
+            dangling_airport_indexes.append(i)
 
     print(f"{count} valid routes found")
-    print(f"{m} dangling airports with no outgoing flights")
+    print(f"{len(dangling_airport_indexes)} dangling airports with no outgoing flights")
 
 
 def compute_page_ranks():
@@ -90,13 +87,16 @@ def compute_page_ranks():
     iterations_done = MAX_ITERATIONS
     for iteration in range(MAX_ITERATIONS):
         Q = [0] * n
-        dangling_weight = m * P[first_dangling_airport_index] / n
+        dangling_pagerank = 0
+        for i in dangling_airport_indexes:
+            dangling_pagerank += P[i]
+        dangling_weight = dangling_pagerank / n
         for i in range(n):
             airport = airport_list[i]
             summ = 0
             for adj_pos, w in airport.edges.items():
                 adjacent_airport = airport_list[adj_pos]
-                summ += (P[i] * w) / adjacent_airport.out_weight
+                summ += (P[adj_pos] * w) / adjacent_airport.out_weight
             Q[i] = L * (summ + dangling_weight) + teleport_factor
         if have_converged(P, Q):
             iterations_done = iteration + 1
@@ -108,8 +108,8 @@ def compute_page_ranks():
     return iterations_done
 
 
-def have_converged(p, q):
-    for x, y in zip(p, q):
+def have_converged(P, Q):
+    for x, y in zip(P, Q):
         if abs(x - y) > CONVERGENCE_THRESHOLD:
             return False
     return True
@@ -117,13 +117,17 @@ def have_converged(p, q):
 
 def output_page_ranks():
     airport_list.sort(reverse=True, key=lambda x: x.pagerank)
-
+    separating_line = f'\n{"-" * 80}\n'
+    print(separating_line)
     with open('output.txt', 'w', encoding='utf-8') as output:
+        result_title = 'Ranking of the resulting pageranks:\n'
+        print(result_title)
+        output.write(result_title + '\n')
         for i, airport in enumerate(airport_list):
-            airport_line = f'{i}:'.ljust(3) + ' ' + str(airport)
+            airport_line = f'{i+1}:'.ljust(3) + ' ' + str(airport)
             print(airport_line)
             output.write(airport_line + '\n')
-        print(f'\n{"-" * 50}\n')
+        print(separating_line)
 
 
 def check_p_sum():
